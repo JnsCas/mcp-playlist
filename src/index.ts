@@ -11,6 +11,7 @@ const spotifyApi = new SpotifyWebApi({
   clientId: process.env.SPOTIFY_CLIENT_ID,
   clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
 });
+spotifyApi.setAccessToken(`${process.env.SPOTIFY_TOKEN}`);
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -23,7 +24,7 @@ const server = new McpServer({
 
 server.tool("generate-playlist",
   {  
-    theme: z.string().describe('The theme or mood for the playlist (e.g., "rainy day", "workout", "relaxing evening")'), 
+    theme: z.string().describe('The theme or mood for the playlist (e.g., "rainy day", "workout", "relaxing evening")'),
     limit: z.number().describe('The maximum number of tracks in the playlist').optional() 
   },
   async ({ theme, limit = 10 }) => {
@@ -48,16 +49,17 @@ server.tool("generate-playlist",
         };
       }
 
-      const songs = JSON.parse(content).songs;
+
+      const results = JSON.parse(content.replace('\n', "")).songs;
 
       const searchResults = await Promise.all(
-        songs.map(async (song: { title: string; artist: string }) => {
+        results.map(async (result: { title: string; artist: string }) => {
           const searchResult = await spotifyApi.searchTracks(
-            `${song.title} artist:${song.artist}`,
+            `${result.title} artist:${result.artist}`,
             { limit: 1 }
           );
           return {
-            ...song,
+            ...result,
             uri: searchResult.body.tracks?.items[0]?.uri
           };
         })
@@ -96,8 +98,4 @@ server.tool("generate-playlist",
 );
 
 const transport = new StdioServerTransport();
-server.connect(transport).then(() => {
-  console.log('Server started');
-}).catch((err) => {
-  console.error('Error connecting to server:', err);
-});
+server.connect(transport);
